@@ -1,0 +1,55 @@
+name: keep
+
+on:
+  schedule:
+    # 每两小时执行一次
+    - cron: '0 */12 * * *'  # 每十二小时触发一次，分钟设置为 0，表示每小时的整点执行
+
+  workflow_dispatch:  # 允许手动触发工作流
+    inputs:
+      CHECK_NEZHA:  # 定义一个输入变量
+        description: 'Enable Nezha scripts'  # 输入描述
+        required: false
+        default: 'false'  # 默认值为 false，可以设置为 true 手动启用
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 检出代码
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      # 设置执行权限
+      - name: Set executable permissions
+        run: |
+          chmod +x ./keep_00.sh
+          chmod +x ./keep_01.sh
+          chmod +x ./keep_02.sh
+          chmod +x ./nezha_keep_00.sh
+          chmod +x ./nezha_keep_01.sh
+          chmod +x ./nezha_keep_02.sh
+
+      # 执行 keep 脚本
+      - name: Run keep scripts
+        env:
+          SERVER_1: ${{ secrets.SERVER_1 }}
+          SERVER_2: ${{ secrets.SERVER_2 }}
+          SERVER_3: ${{ secrets.SERVER_3 }}
+          SERVER_4: ${{ secrets.SERVER_4 }}
+          NEZHA_SERVER_1: ${{ secrets.NEZHA_SERVER_1 }}
+          NEZHA_SERVER_2: ${{ secrets.NEZHA_SERVER_2 }}
+          NEZHA_SERVER_3: ${{ secrets.NEZHA_SERVER_3 }}
+          NEZHA_SERVER_4: ${{ secrets.NEZHA_SERVER_4 }}
+          CHECK_NEZHA: ${{ github.event.inputs.CHECK_NEZHA }} # 从输入获取 CHECK_NEZHA
+        run: |
+          ./keep_00.sh
+          ./keep_01.sh
+          ./keep_02.sh
+
+          if [ "$CHECK_NEZHA" = "true" ]; then
+            ./nezha_keep_00.sh
+            ./nezha_keep_01.sh
+            ./nezha_keep_02.sh
+          fi
