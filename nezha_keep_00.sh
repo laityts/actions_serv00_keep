@@ -1,16 +1,39 @@
 #!/bin/bash
-# 如果要检测哪吒是否在线，请将哪吒面板上agent名字以：S1,S2,S3,S4....形式命名 
-SCRIPT_PATH="/root/keep_00.sh"                 # 脚本路径
-NEZHA_URL="http://nezha.abcgefg.com"           # 哪吒面板地址 
-API_TOKEN="RtzwTHlXjG2RXHaVW5JUBMcO2DR9OI123"   # 哪吒面板api token
+
+SCRIPT_PATH="$(pwd)/$(basename "$0")"                 # 脚本路径
+LOG="$(pwd)/$(basename "$0" .sh).log"
 
 export CFIP=${CFIP:-'www.visa.com.tw'}         # 优选域名或优选ip
 export CFPORT=${CFIPPORT:-'443'}               # 优选域名或优选ip对应端口
 export UUID=${UUID:-'f8805ffb-d0a7-4f3b-8ffc-5aa99fc963c8'}
  
+# 如果要检测哪吒是否在线，请将哪吒面板上agent名字以：S1,S2,S3,S4....形式命名 
+NEZHA_URL="http://nezha.abcgefg.com"           # 哪吒面板地址 
+API_TOKEN="RtzwTHlXjG2RXHaVW5JUBMcO2DR9OI123"   # 哪吒面板api token
+ 
+TOKEN=$TOKEN
+CHAT_ID=$CHAT_ID
+ 
+ if [ -f "$LOG" ]; then
+    echo "$LOG 日志存在，正在删除..."
+    rm "$LOG"
+    echo "$LOG 日志已删除。"
+else
+    echo "$LOG 日志不存在，无需删除。"
+fi 
+ 
  # serv00或ct8服务器及端口配置, 哪吒，argo固定隧道可不填写
 declare -A servers=(  # 账号:密码:tcp端口:udp1端口:udp2端口:哪吒客户端域名:哪吒agent端口:哪吒密钥:argo域名:Argo隧道json或token 
     ["s14.serv00.com"]="$NEZHA_SERVER_1"
+)
+
+declare -A servers2=(  # 账号:密码:tcp端口:udp1端口:udp2端口:哪吒客户端域名:哪吒agent端口:哪吒密钥:argo域名:Argo隧道json或token 
+    ["s14.serv00.com"]="$NEZHA_SERVER_2"
+)
+
+declare -A servers3=(  # 账号:密码:tcp端口:udp1端口:udp2端口:哪吒客户端域名:哪吒agent端口:哪吒密钥:argo域名:Argo隧道json或token 
+    ["s14.serv00.com"]="$NEZHA_SERVER_3"
+    ["s14.serv00.com"]="$NEZHA_SERVER_4"
 )
 
 # 定义颜色
@@ -38,24 +61,6 @@ install_packages() {
 }
 install_packages
 clear
-
-# 添加定时任务
-add_cron_job() {
-    if [ -f /etc/alpine-release ]; then
-        if ! command -v crond >/dev/null 2>&1; then
-            apk add --no-cache cronie bash >/dev/null 2>&1 &
-            rc-update add crond && rc-service crond start
-        fi
-    fi
-    # 检查定时任务是否已经存在
-    if ! crontab -l 2>/dev/null | grep -q "$SCRIPT_PATH"; then
-        (crontab -l 2>/dev/null; echo "*/2 * * * * /bin/bash $SCRIPT_PATH >> /root/keep_00.log 2>&1") | crontab -
-        green "已添加计划任务，每两分钟执行一次"
-    else
-        purple "计划任务已存在，跳过添加计划任务"
-    fi
-}
-add_cron_job
 
 # 检查 TCP 端口是否通畅
 check_tcp_port() {
@@ -154,10 +159,12 @@ for host in "${!servers[@]}"; do
     while [ $nezha_attempt -lt $max_attempts ]; do
         if check_nezha_agent "$nezha_index"; then
             green "$time  Nezha agent在线 服务器: $host  账户: $ssh_user"
+            curl -s -X POST https://api.telegram.org/bot$TOKEN/sendMessage -d chat_id=$CHAT_ID -d text="$time  Nezha agent在线 服务器: $host  账户: $ssh_user"
             nezha_attempt=0
             break
         else
             red "$time  Nezha agent离线 服务器: $host  账户: $ssh_user"
+            curl -s -X POST https://api.telegram.org/bot$TOKEN/sendMessage -d chat_id=$CHAT_ID -d text="$time  Nezha agent离线 服务器: $host  账户: $ssh_user"
             sleep 10
             nezha_attempt=$((nezha_attempt+1))
         fi
@@ -180,10 +187,12 @@ for host in "${!servers[@]}"; do
     while [ $argo_attempt -lt $max_attempts ]; do
         if check_argo_tunnel "$argo_domain"; then
             green "$time  Argo 隧道在线 Argo域名: $argo_domain   账户: $ssh_user\n"
+            curl -s -X POST https://api.telegram.org/bot$TOKEN/sendMessage -d chat_id=$CHAT_ID -d text="$time  Argo 隧道在线 Argo域名: $argo_domain   账户: $ssh_user"
             argo_attempt=0
             break
         else
             red "$time  Argo 隧道离线 Argo域名: $argo_domain   账户: $ssh_user"
+            curl -s -X POST https://api.telegram.org/bot$TOKEN/sendMessage -d chat_id=$CHAT_ID -d text="$time  Argo 隧道离线 Argo域名: $argo_domain   账户: $ssh_user"
             sleep 10
             argo_attempt=$((argo_attempt+1))
         fi
@@ -199,6 +208,149 @@ for host in "${!servers[@]}"; do
             echo "$output"
         else
             red "$time  连接失败，请检查你的账户密码 服务器: $host  账户: $ssh_user"
+            curl -s -X POST https://api.telegram.org/bot$TOKEN/sendMessage -d chat_id=$CHAT_ID -d text="$time  连接失败，请检查你的账户密码 服务器: $host  账户: $ssh_user"
+        fi
+    fi
+done
+
+# 循环遍历服务器列表检测
+for host in "${!servers2[@]}"; do
+    IFS=':' read -r ssh_user ssh_pass tcp_port udp1_port udp2_port nezha_server nezha_port nezha_key argo_domain argo_auth <<< "${servers2[$host]}"
+
+    nezha_agent_name=${host%%.*}
+    nezha_index=${nezha_agent_name:1}
+
+    tcp_attempt=0
+    argo_attempt=0
+    nezha_attempt=0
+    max_attempts=3
+    time=$(TZ="Asia/Hong_Kong" date +"%Y-%m-%d %H:%M")
+
+    # 检查 Nezha agent
+    while [ $nezha_attempt -lt $max_attempts ]; do
+        if check_nezha_agent "$nezha_index"; then
+            green "$time  Nezha agent在线 服务器: $host  账户: $ssh_user"
+            curl -s -X POST https://api.telegram.org/bot$TOKEN/sendMessage -d chat_id=$CHAT_ID -d text="$time  Nezha agent在线 服务器: $host  账户: $ssh_user"
+            nezha_attempt=0
+            break
+        else
+            red "$time  Nezha agent离线 服务器: $host  账户: $ssh_user"
+            curl -s -X POST https://api.telegram.org/bot$TOKEN/sendMessage -d chat_id=$CHAT_ID -d text="$time  Nezha agent离线 服务器: $host  账户: $ssh_user"
+            sleep 10
+            nezha_attempt=$((nezha_attempt+1))
+        fi
+    done
+
+    # 检查 TCP 端口
+    while [ $tcp_attempt -lt $max_attempts ]; do
+        if check_tcp_port "$host" "$tcp_port"; then
+            green "$time  TCP端口${tcp_port}通畅 服务器: $host  账户: $ssh_user"
+            tcp_attempt=0
+            break
+        else
+            red "$time  TCP端口${tcp_port}不通 服务器: $host  账户: $ssh_user"
+            sleep 10
+            tcp_attempt=$((tcp_attempt+1))
+        fi
+    done
+
+    # 检查 Argo 隧道
+    while [ $argo_attempt -lt $max_attempts ]; do
+        if check_argo_tunnel "$argo_domain"; then
+            green "$time  Argo 隧道在线 Argo域名: $argo_domain   账户: $ssh_user\n"
+            curl -s -X POST https://api.telegram.org/bot$TOKEN/sendMessage -d chat_id=$CHAT_ID -d text="$time  Argo 隧道在线 Argo域名: $argo_domain   账户: $ssh_user"
+            argo_attempt=0
+            break
+        else
+            red "$time  Argo 隧道离线 Argo域名: $argo_domain   账户: $ssh_user"
+            curl -s -X POST https://api.telegram.org/bot$TOKEN/sendMessage -d chat_id=$CHAT_ID -d text="$time  Argo 隧道离线 Argo域名: $argo_domain   账户: $ssh_user"
+            sleep 10
+            argo_attempt=$((argo_attempt+1))
+        fi
+    done
+   
+    # 如果3次检测失败，则执行 SSH 连接并执行远程命令
+    if [ $tcp_attempt -ge 3 ] || [ $argo_attempt -ge 3 ] || [ $nezha_attempt -ge 3 ]; then
+        yellow "$time 多次检测失败，尝试通过SSH连接并远程执行命令  服务器: $host  账户: $ssh_user"
+        if sshpass -p "$ssh_pass" ssh -o StrictHostKeyChecking=no "$ssh_user@$host" -q exit; then
+            green "$time  SSH远程连接成功 服务器: $host  账户 : $ssh_user"
+            output=$(run_remote_command "$host" "$ssh_user" "$ssh_pass" "$tcp_port" "$udp1_port" "$udp2_port" "$nezha_server" "$nezha_port" "$nezha_key" "$argo_domain" "$argo_auth")
+            yellow "远程命令执行结果：\n"
+            echo "$output"
+        else
+            red "$time  连接失败，请检查你的账户密码 服务器: $host  账户: $ssh_user"
+            curl -s -X POST https://api.telegram.org/bot$TOKEN/sendMessage -d chat_id=$CHAT_ID -d text="$time  连接失败，请检查你的账户密码 服务器: $host  账户: $ssh_user"
+        fi
+    fi
+done
+
+# 循环遍历服务器列表检测
+for host in "${!servers3[@]}"; do
+    IFS=':' read -r ssh_user ssh_pass tcp_port udp1_port udp2_port nezha_server nezha_port nezha_key argo_domain argo_auth <<< "${servers3[$host]}"
+
+    nezha_agent_name=${host%%.*}
+    nezha_index=${nezha_agent_name:1}
+
+    tcp_attempt=0
+    argo_attempt=0
+    nezha_attempt=0
+    max_attempts=3
+    time=$(TZ="Asia/Hong_Kong" date +"%Y-%m-%d %H:%M")
+
+    # 检查 Nezha agent
+    while [ $nezha_attempt -lt $max_attempts ]; do
+        if check_nezha_agent "$nezha_index"; then
+            green "$time  Nezha agent在线 服务器: $host  账户: $ssh_user"
+            curl -s -X POST https://api.telegram.org/bot$TOKEN/sendMessage -d chat_id=$CHAT_ID -d text="$time  Nezha agent在线 服务器: $host  账户: $ssh_user"
+            nezha_attempt=0
+            break
+        else
+            red "$time  Nezha agent离线 服务器: $host  账户: $ssh_user"
+            curl -s -X POST https://api.telegram.org/bot$TOKEN/sendMessage -d chat_id=$CHAT_ID -d text="$time  Nezha agent离线 服务器: $host  账户: $ssh_user"
+            sleep 10
+            nezha_attempt=$((nezha_attempt+1))
+        fi
+    done
+
+    # 检查 TCP 端口
+    while [ $tcp_attempt -lt $max_attempts ]; do
+        if check_tcp_port "$host" "$tcp_port"; then
+            green "$time  TCP端口${tcp_port}通畅 服务器: $host  账户: $ssh_user"
+            tcp_attempt=0
+            break
+        else
+            red "$time  TCP端口${tcp_port}不通 服务器: $host  账户: $ssh_user"
+            sleep 10
+            tcp_attempt=$((tcp_attempt+1))
+        fi
+    done
+
+    # 检查 Argo 隧道
+    while [ $argo_attempt -lt $max_attempts ]; do
+        if check_argo_tunnel "$argo_domain"; then
+            green "$time  Argo 隧道在线 Argo域名: $argo_domain   账户: $ssh_user\n"
+            curl -s -X POST https://api.telegram.org/bot$TOKEN/sendMessage -d chat_id=$CHAT_ID -d text="$time  Argo 隧道在线 Argo域名: $argo_domain   账户: $ssh_user"
+            argo_attempt=0
+            break
+        else
+            red "$time  Argo 隧道离线 Argo域名: $argo_domain   账户: $ssh_user"
+            curl -s -X POST https://api.telegram.org/bot$TOKEN/sendMessage -d chat_id=$CHAT_ID -d text="$time  Argo 隧道离线 Argo域名: $argo_domain   账户: $ssh_user"
+            sleep 10
+            argo_attempt=$((argo_attempt+1))
+        fi
+    done
+   
+    # 如果3次检测失败，则执行 SSH 连接并执行远程命令
+    if [ $tcp_attempt -ge 3 ] || [ $argo_attempt -ge 3 ] || [ $nezha_attempt -ge 3 ]; then
+        yellow "$time 多次检测失败，尝试通过SSH连接并远程执行命令  服务器: $host  账户: $ssh_user"
+        if sshpass -p "$ssh_pass" ssh -o StrictHostKeyChecking=no "$ssh_user@$host" -q exit; then
+            green "$time  SSH远程连接成功 服务器: $host  账户 : $ssh_user"
+            output=$(run_remote_command "$host" "$ssh_user" "$ssh_pass" "$tcp_port" "$udp1_port" "$udp2_port" "$nezha_server" "$nezha_port" "$nezha_key" "$argo_domain" "$argo_auth")
+            yellow "远程命令执行结果：\n"
+            echo "$output"
+        else
+            red "$time  连接失败，请检查你的账户密码 服务器: $host  账户: $ssh_user"
+            curl -s -X POST https://api.telegram.org/bot$TOKEN/sendMessage -d chat_id=$CHAT_ID -d text="$time  连接失败，请检查你的账户密码 服务器: $host  账户: $ssh_user"
         fi
     fi
 done

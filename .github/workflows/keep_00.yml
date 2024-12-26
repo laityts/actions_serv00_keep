@@ -25,11 +25,7 @@ jobs:
       - name: Set executable permissions
         run: |
           chmod +x ./keep_00.sh
-          chmod +x ./keep_01.sh
-          chmod +x ./keep_02.sh
           chmod +x ./nezha_keep_00.sh
-          chmod +x ./nezha_keep_01.sh
-          chmod +x ./nezha_keep_02.sh
 
       # 执行 keep 脚本
       - name: Run keep scripts
@@ -43,13 +39,11 @@ jobs:
           NEZHA_SERVER_3: ${{ secrets.NEZHA_SERVER_3 }}
           NEZHA_SERVER_4: ${{ secrets.NEZHA_SERVER_4 }}
           CHECK_NEZHA: ${{ github.event.inputs.CHECK_NEZHA }} # 从输入获取 CHECK_NEZHA
+          TOKEN: ${{ secrets.TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
         run: |
           ./keep_00.sh
-          ./keep_01.sh
-          ./keep_02.sh
 
           if [ "$CHECK_NEZHA" = "true" ]; then
             ./nezha_keep_00.sh
-            ./nezha_keep_01.sh
-            ./nezha_keep_02.sh
           fi
